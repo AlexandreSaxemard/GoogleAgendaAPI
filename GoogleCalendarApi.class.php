@@ -113,8 +113,8 @@ class GoogleCalendarApi {
         $end_time = !empty($event_datetime['end_time'])?$event_datetime['end_time']:date("H:i:s"); 
  
         if($all_day == 1){ 
-            $curlPost['start'] = array('date' => $event_date); 
-            $curlPost['end'] = array('date' => $event_date); 
+            $curlPost['start'] = array('start_time' => $event_datetime); 
+            $curlPost['end'] = array('end_time' => $event_datetime); 
         }else{ 
             $timezone_offset = $this->getTimezoneOffset($event_timezone); 
             $timezone_offset = !empty($timezone_offset)?$timezone_offset:'07:00'; 
@@ -122,7 +122,7 @@ class GoogleCalendarApi {
             $dateTime_end = $event_date.'T'.$end_time.$timezone_offset; 
              
             $curlPost['start'] = array('dateTime' => $dateTime_start, 'timeZone' => $event_timezone); 
-            $curlPost['end'] = array('dateTime' => $dateTime_end, 'timeZone' => $event_timezone); 
+            $curlPost['end'] = array('dateTime' => $dateTime_end, 'timeZone' => $event_timezone);
         } 
         $ch = curl_init();         
         curl_setopt($ch, CURLOPT_URL, $apiURL);         
@@ -145,7 +145,7 @@ class GoogleCalendarApi {
         return $data['id']; 
     } 
      
-    private function getTimezoneOffset($timezone = 'America/Los_Angeles'){ 
+    private function getTimezoneOffset($timezone = 'Europe/Paris'){ 
         $current   = timezone_open($timezone); 
         $utcTime  = new \DateTime('now', new \DateTimeZone('UTC')); 
         $offsetInSecs =  timezone_offset_get($current, $utcTime); 
