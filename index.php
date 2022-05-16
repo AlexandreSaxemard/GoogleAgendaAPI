@@ -5,9 +5,6 @@
 //Include Configuration File
 include('config.php');
 
-// Include database configuration file 
-require_once 'dbConfig.php';
-
 // Include Google calendar api handler class 
 require_once 'GoogleCalendarApi.class.php'; 
 
@@ -15,62 +12,63 @@ require_once('sessionVerif.php');
 
 $login_button = '';
 
-// This $_GET["code"] variable value received after user has login into their Google Account redirct to PHP script then this variable value has been received
+
+// Si la valeur de variable $_GET["code"] a été reçue après que l'utilisateur s'est connecté à son compte Google, alors on exécute la suite du bloc de code en dessous
 if(isset($_GET["code"]))
 {
- // It will Attempt to exchange a code for an valid authentication token.
- $token = $google_client->fetchAccessTokenWithAuthCode($_GET["code"]);
+    // Echange d'un code contre un jeton d'authentification valide.
+    $token = $google_client->fetchAccessTokenWithAuthCode($_GET["code"]);
 
- // This condition will check there is any error occur during geting authentication token. If there is no any error occur then it will execute if block of code/
- if(!isset($token['error']))
- {
-  // Set the access token used for requests
-  $google_client->setAccessToken($token['access_token']);
+    // Cette condition vérifiera qu'une erreur s'est produite lors de l'obtention du jeton d'authentification. S'il n'y a pas d'erreur, il s'exécutera le bloc de code en dessous
+    if(!isset($token['error']))
+    {
+        // Définit le jeton d'accès utilisé pour les requêtes
+        $google_client->setAccessToken($token['access_token']);
 
-  // Stockage de l'access token dans une variable pour une future utilisation
-  $_SESSION['access_token'] = $token['access_token'];
-  $access_token = $_SESSION['access_token'];
-  echo ($access_token);
+        // Stockage de l'access token dans une variable pour une future utilisation
+        $_SESSION['access_token'] = $token['access_token'];
+        $access_token = $_SESSION['access_token'];
+        echo ($access_token);
 
-  // Créer l'objet de la classe Google Oauth 2
-  $google_service = new Google_Service_Oauth2($google_client);
+        // Créer l'objet de la classe Google Oauth 2
+        $google_service = new Google_Service_Oauth2($google_client);
 
-  // Obtention des données de l'utilisteur depuis Google
-  $data = $google_service->userinfo->get();
+        // Obtention des données de l'utilisteur depuis Google
+        $data = $google_service->userinfo->get();
 
-  //Below you can find Get profile data and store into $_SESSION variable
-  if(!empty($data['given_name']))
-  {
-   $_SESSION['user_first_name'] = $data['given_name'];
-  }
+        // Ci-dessous, vous pouvez obtenir les données de profil et les stocker dans la variable $_SESSION
+        if(!empty($data['given_name']))
+        {
+            $_SESSION['user_first_name'] = $data['given_name'];
+        }
 
-  if(!empty($data['family_name']))
-  {
-   $_SESSION['user_last_name'] = $data['family_name'];
-  }
+        if(!empty($data['family_name']))
+        {
+            $_SESSION['user_last_name'] = $data['family_name'];
+        }
 
-  if(!empty($data['email']))
-  {
-   $_SESSION['user_email_address'] = $data['email'];
-  }
+        if(!empty($data['email']))
+        {
+            $_SESSION['user_email_address'] = $data['email'];
+        }
 
-  if(!empty($data['gender']))
-  {
-   $_SESSION['user_gender'] = $data['gender'];
-  }
+        if(!empty($data['gender']))
+        {
+            $_SESSION['user_gender'] = $data['gender'];
+        }
 
-  if(!empty($data['picture']))
-  {
-   $_SESSION['user_image'] = $data['picture'];
-  }
- }
+        if(!empty($data['picture']))
+        {
+            $_SESSION['user_image'] = $data['picture'];
+        }
+    }
 }
 
 // Vérifie si l'utilisateur est déja connecté, si non, exécution du bloc de code ci-contre
 if(!isset($_SESSION['access_token']))
 {
- // Création de l'URL pour autorisation
- $login_button = '<a href="'.$google_client->createAuthUrl().'"><img src="sign-in-with-google.png" /></a>';
+    // Création de l'URL pour autorisation
+    $login_button = '<a href="'.$google_client->createAuthUrl().'"><img src="sign-in-with-google.png" /></a>';
 }
 
 ?>
@@ -165,6 +163,9 @@ if(isset($_POST['submit'])){
     $time_from = !empty($_POST['time_from'])?trim($_POST['time_from']):''; 
     $time_to = !empty($_POST['time_to'])?trim($_POST['time_to']):'';
 
+    // Initialize Google Calendar API class
+    $GoogleCalendarApi = new GoogleCalendarApi();
+    
     // Si tout les champs requis ne sont pas remplis
     if(empty($title)){ 
         $valErr .= 'Please enter event title.<br/>'; 
@@ -172,105 +173,45 @@ if(isset($_POST['submit'])){
     if(empty($date)){ 
         $valErr .= 'Please enter event date.<br/>'; 
     } 
-
-    // Si tout les champs requis sont remplis
-    if(empty($valErr)){
-        // Insert data into the database 
-        $sqlQ = "INSERT INTO events (title,description,location,date,time_from,time_to,created) VALUES (?,?,?,?,?,?,NOW())"; 
-        $stmt = $db->prepare($sqlQ); 
-        $stmt->bind_param("ssssss", $db_title, $db_description, $db_location, $db_date, $db_time_from, $db_time_to); 
-        $db_title = $title; 
-        $db_description = $description; 
-        $db_location = $location; 
-        $db_date = $date; 
-        $db_time_from = $time_from; 
-        $db_time_to = $time_to; 
-        $insert = $stmt->execute();
-
-        if($insert){
-            $event_id = $stmt->insert_id; 
-                
-            unset($_SESSION['postData']); 
-                
-            // Store event ID in session 
-            $_SESSION['last_event_id'] = $event_id;
-        }
-    }
-
-    // Initialize Google Calendar API class
-    $GoogleCalendarApi = new GoogleCalendarApi();
-
-    // Get event ID from session 
-    $event_id = $_SESSION['last_event_id'];
-
-    if(!empty($event_id)){
-        // Fetch event details from database 
-        $sqlQ = "SELECT * FROM events WHERE id = ?"; 
-        $stmt = $db->prepare($sqlQ);  
-        $stmt->bind_param("i", $db_event_id); 
-        $db_event_id = $event_id; 
-        $stmt->execute(); 
-        $result = $stmt->get_result(); 
-        $eventData = $result->fetch_assoc();
+    $eventData = $_SESSION['postData'];
+    
+    // Si la variable $eventData n'est pas vide on passe les données en string
+    if(!empty($eventData)){
+        $calendar_event = array( 
+            'summary' => $eventData['title'], 
+            'location' => $eventData['location'], 
+            'description' => $eventData['description'] 
+        ); 
+        
+        $event_datetime = array( 
+            'event_date' => $eventData['date'], 
+            'start_time' => $eventData['time_from'], 
+            'end_time' => $eventData['time_to'] 
+        );
         var_dump($eventData);
-
-        if(!empty($eventData)){
-            $calendar_event = array( 
-                'summary' => $eventData['title'], 
-                'location' => $eventData['location'], 
-                'description' => $eventData['description'] 
-            ); 
-             
-            $event_datetime = array( 
-                'event_date' => $eventData['date'], 
-                'start_time' => $eventData['time_from'], 
-                'end_time' => $eventData['time_to'] 
-            );
-            $access_token_sess = $_SESSION['access_token'];
-            if(!empty($access_token_sess)){
-                $access_token = $access_token_sess;
-            }else{
-                $data = $GoogleCalendarApi -> GetAccessToken('205163721970-0ncl7bn7eb5qh3den6oreenkd2lvno8j.apps.googleusercontent.com', 'http://localhost/GoogleOAuth/index.php', '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', $_GET['code']);
-                $access_token = $data['access_token'];
-                $_SESSION['access_token'] = $access_token;
-                var_dump($access_token);
-            }
-
-            if(!empty($access_token)){
-                try{
-                    // Get the user's calendar timezone 
-                    $user_timezone = $GoogleCalendarApi -> GetUserCalendarTimezone($access_token);
-                    // Create an event on the primary calendar 
-                    $google_event_id = $GoogleCalendarApi -> CreateCalendarEvent($access_token, 'primary', $calendar_event, 0, $event_datetime, $user_timezone); 
-
-                    if($google_event_id){ 
-                        // Update google event reference in the database 
-                        $sqlQ = "UPDATE events SET google_calendar_event_id=? WHERE id=?"; 
-                        $stmt = $db->prepare($sqlQ); 
-                        $stmt->bind_param("si", $db_google_event_id, $db_event_id); 
-                        $db_google_event_id = $google_event_id; 
-                        $db_event_id = $event_id; 
-                        $update = $stmt->execute(); 
-                         
-                        unset($_SESSION['last_event_id']); 
-                        unset($_SESSION['google_access_token']); 
-                         
-                        $status = 'success'; 
-                        $statusMsg = '<p>Event #'.$event_id.' has been added to Google Calendar successfully!</p>'; 
-                        $statusMsg .= '<p><a href="https://calendar.google.com/calendar/" target="_blank">Open Calendar</a>'; 
-                    } 
-                } catch(Exception $e){
-                    $statusMsg = $e->getMessage(); 
-                }
-            }else{
-                $statusMsg = 'Failed to fetch access token!';  
-            }
+        // On récupère l'access_token qui va être utilisé pour créer l'évenement
+        $access_token_sess = $_SESSION['access_token'];
+        if(!empty($access_token_sess)){
+            $access_token = $access_token_sess;
         }else{
-            $statusMsg = 'Event data not found!';
+            $data = $GoogleCalendarApi -> GetAccessToken($clientID, 'http://localhost/GoogleAPI/index.php', $clientSecret, $_GET['code']);
+            $access_token = $data['access_token'];
+            $_SESSION['access_token'] = $access_token;
         }
-    }else{
-        $statusMsg = 'Event reference not found!';
+        var_dump($access_token);
     }
+    
+    if(!empty($access_token)){
+        // Obtention du fuseau horaire de l'utilisateur 
+        $user_timezone = $GoogleCalendarApi -> GetUserCalendarTimezone($access_token);
+        // Creation de l'évènement sur le calendrier primaire 
+        $google_event_id = $GoogleCalendarApi -> CreateCalendarEvent($access_token, 'primary', $calendar_event, 1, $event_datetime, $user_timezone); 
+
+        if($google_event_id){    
+            $status = 'success'; 
+        }
+    }   
+
     $_SESSION['status_response'] = array('status' => $status, 'status_msg' => $statusMsg); 
     exit();
 }
